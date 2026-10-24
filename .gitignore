@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Generated timetable data — never commit (BUILD_SPEC §9)
+public/data/
+mumbaidb.zip
+*.zip
+*.apk
+*.xapk
+decoded_timetable/
+*.csv
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
