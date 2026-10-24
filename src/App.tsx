@@ -1,7 +1,19 @@
+import { useEffect } from 'react'
 import { BrowserRouter, Link } from 'react-router-dom'
+import UpdatePrompt from './components/UpdatePrompt'
+import { ensureCacheVersion } from './lib/cacheVersion'
+import { getMeta } from './lib/data'
 import AppRoutes from './routes'
 
 export default function App() {
+  useEffect(() => {
+    getMeta()
+      .then((meta) => ensureCacheVersion(meta.version))
+      .catch(() => {
+        /* offline / no data yet: keep serving cached timetable */
+      })
+  }, [])
+
   return (
     <BrowserRouter basename={import.meta.env.BASE_URL}>
       <div className="min-h-dvh bg-white font-sans text-base text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-50">
@@ -14,6 +26,7 @@ export default function App() {
           </div>
         </header>
         <AppRoutes />
+        <UpdatePrompt />
       </div>
     </BrowserRouter>
   )
