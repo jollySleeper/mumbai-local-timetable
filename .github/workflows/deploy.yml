@@ -1,0 +1,69 @@
+name: Deploy
+
+on:
+  schedule:
+    # Mondays ~08:47 IST — deliberately off-the-hour
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Compare deployed version with upstream
+        id: check
+        run: |
+          DEPLOYED=$(curl -fs "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/data/meta.json" | python3 -c "import json,sys; print(json.load(sys.stdin).get('version','none'))" 2>/dev/null || echo "none")
+          echo "deployed=$DEPLOYED"
+          curl -fsSL "https://cdn.mobond.com/mi/mumbaidb.zip" -o /tmp/mumbaidb.zip
+          UPSTREAM=$(python3 -c "import zipfile; print(zipfile.ZipFile('/tmp/mumbaidb.zip').read('version.txt').decode().strip())")
+          echo "upstream=$UPSTREAM"
+          echo "upstream=$UPSTREAM" >> "$GITHUB_OUTPUT"
+          if [ "$DEPLOYED" = "$UPSTREAM" ] && [ "${{ github.event_name }}" = "schedule" ]; then
+            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
+            echo "Timetable unchanged ($UPSTREAM) — skipping deploy."
+          else
+            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate timetable data
+        if: steps.check.outputs.should_deploy == 'true'
+        run: python3 pipeline/build_data.py --zip /tmp/mumbaidb.zip --out public/data
+
+      - name: Build
+        if: steps.check.outputs.should_deploy == 'true'
+        env:
+          VITE_BASE: /${{ github.event.repository.name }}/
+        run: |
+          npm ci
+          npm run build
+
+      - uses: actions/configure-pages@v5
+        if: steps.check.outputs.should_deploy == 'true'
+      - uses: actions/upload-pages-artifact@v3
+        if: steps.check.outputs.should_deploy == 'true'
+        with:
+          path: dist
+      - id: deployment
+        uses: actions/deploy-pages@v4
+        if: steps.check.outputs.should_deploy == 'true'
