@@ -8,6 +8,26 @@ This is an **unofficial, independent, research/educational project**, not affili
 
 The source zip, decoded CSVs and generated JSON are deliberately not stored in this repository; every deployment regenerates them from upstream (see `BUILD_SPEC.md`).
 
+## Features
+
+- **Station departure board** — pick a line and station (search works across lines, e.g. "Dadar — Western" / "Dadar — Central"), see departures in time order with next-trains-from-now, direction filters (towards either terminal), destination, Slow/Fast, platform, and note chips (`AC`, `15 CAR`, `Not on Sunday`).
+- **Train detail** — tap any departure, or search by train number, for the full stop-by-stop run with times and platforms. Numberless metro/monorail services are handled gracefully.
+- **Installable PWA** — works offline for every station/train you have viewed; prompts (never forces) when a new version is available.
+- **Automated updates** — a weekly GitHub Actions workflow checks for a new upstream timetable, regenerates and validates the data, and redeploys only when it changed.
+
+## How it works (methodology)
+
+The timetable originates from Mobond's published `mumbaidb.zip`, a proprietary binary database (custom 4-byte-record format) that was reverse-engineered from the m-Indicator Android app. The proven decoder in `pipeline/decode_mumbaidb.py` reads the zip directly and emits CSVs; `pipeline/build_data.py` then converts those into compact per-station and per-train JSON shards (about 6,200 files, ~24 MB total, fetched on demand — only what you view is downloaded) with strict validation gates, including a golden test on train 90171. The full, verified design is in `BUILD_SPEC.md`.
+
+The app itself is React + TypeScript + Vite + Tailwind CSS, hosted as static files on GitHub Pages. There is no backend, no account, no analytics, and no tracking.
+
+## Limitations
+
+- Times are schedule data from the source zip version shown on each station board; there is no live running/disruption information.
+- Day-of-week validity exists only as free-text notes in the source (e.g. "Not on Sunday"); the app displays those notes and never silently filters trains by them.
+- Weekday/weekend metro and monorail variants are separate lines in the picker (e.g. "Metro 1 — Weekday" / "Metro 1 — Weekend") because they are separate datasets upstream.
+- Offline on iOS is best-effort: Safari may evict cached data after long inactivity.
+
 ## Local development
 
 ```bash
@@ -38,3 +58,11 @@ After that, deployment is automatic:
 - **iOS (Safari):** Share → **Add to Home Screen**. iOS may evict cached data after long inactivity, so offline is best-effort there.
 
 Stations and trains you view are cached automatically and work offline; a timetable version update purges stale cached data on next launch.
+
+## Contributing
+
+Issues and pull requests are welcome. Please keep timetable data, the source zip, and CSVs out of git history (they are gitignored) — deployments regenerate them from upstream. Run `npm run lint`, `npm run typecheck`, and `npm test` before opening a PR; CI runs the full pipeline including data generation.
+
+## Licence
+
+Code in this repository is MIT-licensed (see `LICENSE`). No licence is claimed over the timetable data itself; see the disclaimer above.

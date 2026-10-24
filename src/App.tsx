@@ -26,6 +26,9 @@ export default function App() {
           </div>
         </header>
         <AppRoutes />
+        <footer className="mx-auto w-full max-w-[640px] px-4 py-6 text-xs text-zinc-500 dark:text-zinc-400">
+          Unofficial timetable — not affiliated with any railway operator. Times are schedule data; check station boards for live changes.
+        </footer>
         <UpdatePrompt />
       </div>
     </BrowserRouter>
