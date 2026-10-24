@@ -177,7 +177,7 @@ Treat them as ground truth.
 | Styling | Tailwind CSS v4 via `@tailwindcss/vite` | No legacy config file; utility-first suits list-heavy UI |
 | Routing | React Router, clean URLs, `404.html` fallback | SPA on Pages needs the fallback trick (§6.4) |
 | PWA | `vite-plugin-pwa` (Workbox), `registerType: 'prompt'` | Never auto-reload mid-journey; user taps to update |
-| Data format | Compact per-station + per-train JSON shards (§5.3) | Largest station file ≈55 KB; total departures ≈3.9 MB / 0.5 MB gz — fetch only what's viewed |
+| Data format | Compact per-station + per-train JSON shards (§5.3) | Largest station file ≈185 KB (W/Andheri, 1,260 departures, ~17 KB gz; corrected 2026-10-24 — original 55 KB estimate was arithmetically inconsistent with the §5.3 schema) — fetch only what's viewed |
 | Data fetching | Typed `fetch` + small custom hooks | TanStack Query deferred until live polling exists (§12) |
 | Backend | None. No Go binary, no server. | A binary doesn't remove hosting for a public URL; same `dist/` can be wrapped later if ever wanted (§12) |
 | UI library | None (hand-rolled Tailwind components); `lucide-react` for icons | Keep bundle and dependency surface minimal |
@@ -318,8 +318,8 @@ wire format; map to readable names in TypeScript (§6.2).
   ] }
 ```
 - `m` = minutes since midnight. `no` = `null` for numberless (metro) trains.
-- Sorted by `m` ascending. Largest known file: W/Andheri ≈ 55 KB uncompressed — if any
-  generated file exceeds 150 KB, fail validation (something is wrong).
+- Sorted by `m` ascending. Largest known file: W/Andheri ≈ 185 KB uncompressed (1,260 departures; verified 2026-10-24) — if any
+  generated file exceeds 250 KB, fail validation (something is wrong).
 
 **`data/trains/<LINE>_<seq>.json`** — one per train (5,714 files):
 ```json
@@ -340,7 +340,7 @@ Churchgate 07:50 → Mumbai Central 07:58 → Dadar 08:05 → Bandra 08:11 → A
     "destination": "BORIVALI", "firstTime": "07:50" } ]
 ```
 
-**Total expected output size:** ≈ 6–7 MB uncompressed across ~6,200 files. GitHub Pages
+**Total expected output size:** ≈ 24.5 MB uncompressed across ~6,200 files (verified 2026-10-24: departures 14.6 MB + trains 9.4 MB; only individual shards are fetched on demand). GitHub Pages
 (site limit 1 GB) and the Actions artifact both handle this easily.
 
 ### 5.4 Validation gates (pipeline must exit non-zero if any fail)
@@ -352,7 +352,7 @@ Churchgate 07:50 → Mumbai Central 07:58 → Dadar 08:05 → Bandra 08:11 → A
 3. Every row consumed from `timetable_by_train.csv` has `station_in_index = 'Y'`.
 4. Every generated JSON file parses; every departure's `trainId` resolves to a generated
    train file and vice versa (every train has ≥ 2 stops).
-5. No departures file > 150 KB; `meta.json` version equals the zip's `version.txt`.
+5. No departures file > 250 KB; `meta.json` version equals the zip's `version.txt`.
 6. **Golden test:** train `90171`'s stops equal the reference in §5.3 (skip only if
    `90171` is absent in a future version — then pick the first `W` train and assert it
    has ≥ 2 stops and non-decreasing `stop_order`).
@@ -580,7 +580,7 @@ show its output before committing.** Commit messages are given verbatim.
   line display-name map, all six validation gates, golden test for train `90171`).
 - **Verify:** run it against the reference zip into `public/data`; assert
   `meta.json` version `20260417`, ~448 departure files, ~5,714 train files, biggest
-  departures file < 150 KB, golden test passes. Spot-check
+  departures file < 250 KB, golden test passes. Spot-check
   `public/data/departures/W/15.json` contains `90171` at `m: 499`, `pf: "6"`.
 - **Message:** `feat(pipeline): convert decoded timetable to validated JSON shards`
 
