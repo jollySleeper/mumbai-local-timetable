@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
+    "postbuild": "cp dist/index.html dist/404.html",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
