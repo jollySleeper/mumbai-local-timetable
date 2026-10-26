@@ -41,6 +41,7 @@ export async function getDepartures(line: string, stationIndex: number): Promise
       trainNumber: d.no,
       destination: d.dest,
       destinationIndex: d.destIndex,
+      destinationDisplay: d.dd ?? d.dest,
       origin: d.origin,
       pattern: d.pattern,
       note: d.note,

@@ -173,6 +173,7 @@ def main():
                     "trainId": f"{line}:{int(r['train_seq'])}",
                     "no": (r["train_number"].strip() or None),
                     "dest": dest, "destIndex": station_index[(line, dest)],
+                    "dd": r["destination_display"],
                     "origin": r["origin"], "pattern": r["service_pattern"],
                     "note": r["note"], "pf": r["platform"], "side": r["side"],
                 })

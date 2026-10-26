@@ -9,6 +9,7 @@ function dep(minutes: number, destIndex: number, trainId = `W:${minutes}`): Depa
     trainNumber: null,
     destination: 'X',
     destinationIndex: destIndex,
+    destinationDisplay: 'X',
     origin: 'Y',
     pattern: 'S',
     note: '',

@@ -33,6 +33,7 @@ export interface RawDeparture {
   no: string | null
   dest: string
   destIndex: number
+  dd: string
   origin: string
   pattern: string
   note: string
@@ -71,6 +72,7 @@ export interface Departure {
   trainNumber: string | null
   destination: string
   destinationIndex: number
+  destinationDisplay: string
   origin: string
   pattern: string
   note: string
