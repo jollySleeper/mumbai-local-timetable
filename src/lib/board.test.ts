@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { filterByDirection, selectNext } from './board'
+import { applyBoardFilters, departingTrains, filterByDirection, selectNext } from './board'
 import type { Departure } from './types'
 
 function dep(minutes: number, destIndex: number, trainId = `W:${minutes}`): Departure {
@@ -33,6 +33,24 @@ describe('selectNext', () => {
   })
   it('respects count', () => {
     expect(selectNext(deps, 0, 2)).toHaveLength(2)
+  })
+})
+
+describe('departingTrains + applyBoardFilters (v2)', () => {
+  it('excludes trains terminating at the board station', () => {
+    const deps = [dep(100, 20), { ...dep(200, 15), destination: 'ANDHERI' }]
+    expect(departingTrains(deps, 'ANDHERI')).toHaveLength(1)
+  })
+  it('originating-from and terminating-at are separate filters', () => {
+    const a = { ...dep(100, 20), origin: 'VIRAR', destination: 'CHURCHGATE', pattern: 'F', note: '' }
+    const b = { ...dep(200, 20), origin: 'BORIVALI', destination: 'CHURCHGATE', pattern: 'S', note: 'AC' }
+    const c = { ...dep(300, 20), origin: 'VIRAR', destination: 'BORIVALI', pattern: 'S', note: '' }
+    const all = [a, b, c]
+    expect(applyBoardFilters(all, { originatingFrom: 'VIRAR' })).toEqual([a, c])
+    expect(applyBoardFilters(all, { terminatingAt: 'CHURCHGATE' })).toEqual([a, b])
+    expect(applyBoardFilters(all, { originatingFrom: 'VIRAR', terminatingAt: 'CHURCHGATE' })).toEqual([a])
+    expect(applyBoardFilters(all, { pattern: 'AC' })).toEqual([b])
+    expect(applyBoardFilters(all, { pattern: 'FAST' })).toEqual([a])
   })
 })
 

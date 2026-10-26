@@ -6,6 +6,39 @@ export interface BoardDeparture extends Departure {
 
 export type DirectionFilter = 'all' | 'A' | 'B'
 
+export type PatternFilter = 'ALL' | 'SLOW' | 'FAST' | 'AC'
+
+/** Trains you can actually board: exclude trains terminating at this station. */
+export function departingTrains<T extends { destination: string }>(deps: T[], stationName: string): T[] {
+  return deps.filter((d) => d.destination !== stationName)
+}
+
+/**
+ * Specific filters (redesign v2, per user request — kept separate, never a
+ * guessed combined list):
+ * - originatingFrom: only trains whose journey starts at that station
+ * - terminatingAt: only trains whose final destination is that station
+ * - pattern: ALL / SLOW / FAST / AC (AC via the note text, §2.3.2)
+ */
+export function applyBoardFilters<T extends { origin: string; destination: string; pattern: string; note: string }>(
+  deps: T[],
+  opts: { originatingFrom?: string; terminatingAt?: string; pattern?: PatternFilter },
+): T[] {
+  let out = deps
+  if (opts.originatingFrom) out = out.filter((d) => d.origin === opts.originatingFrom)
+  if (opts.terminatingAt) out = out.filter((d) => d.destination === opts.terminatingAt)
+  if (opts.pattern && opts.pattern !== 'ALL') {
+    out = out.filter((d) => {
+      if (opts.pattern === 'AC') return d.note.toUpperCase().includes('AC')
+      const p = d.pattern.trim()
+      const isFast = p.startsWith('F') || p.startsWith('SF')
+      const isSlow = p.startsWith('S') && !p.startsWith('SF')
+      return opts.pattern === 'FAST' ? isFast : isSlow
+    })
+  }
+  return out
+}
+
 /**
  * Filter by direction (§6.1): compare destination index with current station.
  * A = towards headerA (lower indices), B = towards headerB (higher indices).
