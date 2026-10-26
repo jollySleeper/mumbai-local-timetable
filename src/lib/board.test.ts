@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyBoardFilters, departingTrains, filterByDirection, selectNext } from './board'
+import { applyBoardFilters, dedupeDepartures, departingTrains, filterByDirection, selectNext } from './board'
 import type { Departure } from './types'
 
 function dep(minutes: number, destIndex: number, trainId = `W:${minutes}`): Departure {
@@ -51,6 +51,16 @@ describe('departingTrains + applyBoardFilters (v2)', () => {
     expect(applyBoardFilters(all, { originatingFrom: 'VIRAR', terminatingAt: 'CHURCHGATE' })).toEqual([a])
     expect(applyBoardFilters(all, { pattern: 'AC' })).toEqual([b])
     expect(applyBoardFilters(all, { pattern: 'FAST' })).toEqual([a])
+  })
+})
+
+describe('dedupeDepartures', () => {
+  it('keeps one copy of a numbered train present in two line files', () => {
+    const a = { ...dep(18, 0), trainNumber: '98702', lineCode: 'H' }
+    const b = { ...dep(18, 0), trainNumber: '98702', lineCode: 'W' }
+    const c = { ...dep(18, 0), trainNumber: null, lineCode: 'MM1WD' }
+    const d = { ...dep(18, 0), trainNumber: null, lineCode: 'MM3WD' }
+    expect(dedupeDepartures([a, b, c, d])).toEqual([a, c, d])
   })
 })
 

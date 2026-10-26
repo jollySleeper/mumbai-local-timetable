@@ -8,6 +8,23 @@ export type DirectionFilter = 'all' | 'A' | 'B'
 
 export type PatternFilter = 'ALL' | 'SLOW' | 'FAST' | 'AC'
 
+/**
+ * Dedupe merged departures: the same numbered train can appear in two line
+ * files at an interchange (e.g. 98702 Goregaon-CSMT in both H and W at
+ * Andheri). Numberless (metro) trains keep their line identity.
+ */
+export function dedupeDepartures<T extends { trainNumber: string | null; minutes: number; destination: string; origin: string; lineCode?: string }>(deps: T[]): T[] {
+  const seen = new Set<string>()
+  return deps.filter((d) => {
+    const key = d.trainNumber
+      ? `${d.trainNumber}|${d.minutes}|${d.destination}`
+      : `${d.origin}|${d.destination}|${d.minutes}|${d.lineCode ?? ''}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
 /** Trains you can actually board: exclude trains terminating at this station. */
 export function departingTrains<T extends { destination: string }>(deps: T[], stationName: string): T[] {
   return deps.filter((d) => d.destination !== stationName)
