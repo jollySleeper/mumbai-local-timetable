@@ -1,3 +1,4 @@
+import { TrainFront } from 'lucide-react'
 import { useEffect } from 'react'
 import { BrowserRouter, Link } from 'react-router-dom'
 import UpdatePrompt from './components/UpdatePrompt'
@@ -16,13 +17,13 @@ export default function App() {
 
   return (
     <BrowserRouter basename={import.meta.env.BASE_URL}>
-      <div className="min-h-dvh bg-white font-sans text-base text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-50">
-        <header className="border-b border-zinc-200 bg-red-700 text-white dark:border-zinc-800">
-          <div className="mx-auto w-full max-w-[640px] px-4 py-4">
-            <Link to="/" className="text-xl font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-white">
+      <div className="min-h-dvh bg-zinc-100 font-sans text-base text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-50">
+        <header className="bg-[#c8102e] text-white">
+          <div className="mx-auto flex w-full max-w-[640px] items-center gap-2 px-4 py-3">
+            <TrainFront aria-hidden="true" className="h-6 w-6" />
+            <Link to="/" className="text-lg font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-white">
               Mumbai Local Timetable
             </Link>
-            <p className="text-sm text-red-100">Local, metro &amp; monorail schedules</p>
           </div>
         </header>
         <AppRoutes />

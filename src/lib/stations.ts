@@ -117,7 +117,7 @@ export interface DirectionGroup {
 
 function headerLabel(header: string): string {
   return header
-    .split(/[,\/]/)
+    .split(/[,/]/)
     .map((p) => titleCase(p.trim()))
     .filter(Boolean)
     .join(' / ')
