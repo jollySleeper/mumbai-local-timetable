@@ -719,6 +719,35 @@ show its output before committing.** Commit messages are given verbatim.
 
 ---
 
+## 12A. v2 redesign (implemented after v1)
+
+The v2 UI is station-first and modelled on the physical flow of a timetable board,
+while remaining an independent implementation with no Mobond branding or assets:
+
+- **Unified station identity.** Stations with the same name across lines are one
+  place (e.g. Andheri = Western + Harbour + Metro 1). Weekday/weekend variants
+  (`MM1WD/MM1WE`, `MM3WD/MM3WE`, `MONO1/MONO1WE`) collapse to one displayed line,
+  using the IST weekend variant on Saturday/Sunday.
+- **Direction clusters.** A board is station + terminal cluster, not one line
+  only. `CHURCHGATE` and `CSMT` are merged as the `SOUTH` cluster because both are
+  southbound termini from shared stations; other clusters use the primary header
+  terminal. Duplicate departures for the same numbered train/time/destination are
+  removed when a service appears in more than one line file.
+- **Terminating trains are excluded from departure boards.** A departure whose
+  final destination equals the current station is an arrival, not a departure
+  for this board.
+- **Two distinct user filters, never conflated.** *Originating from* uses the
+  train journey's origin; *Terminating at* uses the train journey's final
+  destination. These are independent filters and must never be inferred from a
+  single generic destination input.
+- **Favourite routes** are stored in `localStorage` as station + direction cluster
+  only (never `train_seq`). A board remembers the last unified station.
+- **Live-ready, not live.** The board has a reserved live-status slot, but no live
+  data is fetched until a permissive proxy such as the Cloudflare Worker in §12.3
+  exists. Social/chat/crowd features from any other app are out of scope.
+
+---
+
 ## 13. Definition of done (v1)
 
 - [ ] All 15 commits in §10 exist, each with its Verify step demonstrably run.

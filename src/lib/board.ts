@@ -79,10 +79,10 @@ export function filterByDirection(
  * filled up to `count` with the first departures of the day labelled tomorrow,
  * so the board never shows an empty screen at end of service.
  */
-export function selectNext(deps: Departure[], now: number, count = 50): BoardDeparture[] {
+export function selectNext<T extends Departure>(deps: T[], now: number, count = 50): (T & { tomorrow: boolean })[] {
   const sorted = [...deps].sort((a, b) => a.minutes - b.minutes)
   const remaining = sorted.filter((d) => d.minutes >= now - 1)
-  const result: BoardDeparture[] = remaining.slice(0, count).map((d) => ({ ...d, tomorrow: false }))
+  const result: (T & { tomorrow: boolean })[] = remaining.slice(0, count).map((d) => ({ ...d, tomorrow: false }))
   if (result.length < count) {
     for (const d of sorted) {
       if (result.length >= count) break
