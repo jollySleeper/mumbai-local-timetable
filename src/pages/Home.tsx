@@ -1,15 +1,37 @@
-import { ChevronRight, Search, Star, X } from 'lucide-react'
-import { useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import DestinationGroups from '../components/DestinationGroups'
+import { ChevronRight, Clock3, House, Info, Map as MapIcon, Rows3, Search, Star, TrainFront, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import skylineDark from '../assets/night-flare-skyline-dark.jpg'
+import skylineLight from '../assets/night-flare-skyline-light.jpg'
 import { useJson } from '../hooks/useJson'
 import { getStations, getTrainIndex } from '../lib/data'
 import { loadFavourites } from '../lib/favourites'
 import { titleCase } from '../lib/format'
-import { mergeStations, type UnifiedStation } from '../lib/stations'
+import { badgeFor, mergeStations, type UnifiedStation } from '../lib/stations'
 import type { TrainIndexEntry } from '../lib/types'
 
 const RAILWAY = new Set(['W', 'C', 'H', 'T', 'U', 'DPR', 'DVP', 'NM', 'P'])
+
+// Friendly tab labels — raw dataset codes (DPR, MMAD…) mean nothing to riders.
+const TAB_LABELS: Record<string, string> = {
+  W: 'Western',
+  C: 'Central',
+  H: 'Harbour',
+  T: 'Trans-Harbour',
+  MM1: 'Metro 1',
+  MM3: 'Metro 3',
+  MONO: 'Monorail',
+  DPR: 'Diva–Roha',
+  DVP: 'Diva–Dahanu',
+  NM: 'Neral–Matheran',
+  P: 'Pune–Lonavla',
+  U: 'Uran',
+  MMAD: 'Metro · Andheri West',
+  MMAD2: 'Metro · Andheri West 2',
+  MMAD3: 'Metro · Andheri West 3',
+  NMM1: 'Navi Mumbai Metro',
+  NMM1_2: 'Navi Mumbai Metro 2',
+}
 
 function subtitle(st: UnifiedStation): string {
   const codes = st.instances.map((i) => i.lineCode)
@@ -33,38 +55,77 @@ function readLastName(): string | null {
 
 export default function Home() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const mode = searchParams.get('mode')
   const stationsQ = useJson(getStations)
   const indexQ = useJson(getTrainIndex)
-  const [tab, setTab] = useState<'station' | 'train'>('station')
+  const [tab, setTab] = useState<'station' | 'train'>(mode === 'train' ? 'train' : 'station')
   const [query, setQuery] = useState('')
-  const [lineFilter, setLineFilter] = useState<string>('ALL')
-  const [sheetOpen, setSheetOpen] = useState(false)
-  const [expanded, setExpanded] = useState<string | null>(null)
-  const [showFavs, setShowFavs] = useState(false)
+  // Browse tab: 'ALL' or a display badge/family (W, C, H, T, MM1, MM3, MONO…)
+  const [browseTab, setBrowseTab] = useState<string>('ALL')
   const [trainQuery, setTrainQuery] = useState('')
   const [trainResults, setTrainResults] = useState<TrainIndexEntry[] | null>(null)
-  const favs = useMemo(loadFavourites, [showFavs])
+  const [showAllStations, setShowAllStations] = useState(false)
+
+  const scrollToId = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  // Nav links (/?mode=train, /?mode=saved) must work even when already on Home:
+  // react to mode changes instead of only reading it on first mount.
+  useEffect(() => {
+    if (mode === 'train') {
+      setTab('train')
+      scrollToId('top')
+    } else if (mode === 'saved') {
+      setTab('station')
+      // Wait for the station tab content to render before scrolling.
+      const t = setTimeout(() => scrollToId('saved-routes'), 60)
+      return () => clearTimeout(t)
+    }
+  }, [mode])
+
+  useEffect(() => {
+    setShowAllStations(false)
+  }, [browseTab, query])
+  const favs = useMemo(loadFavourites, [mode])
   const lastName = useMemo(readLastName, [])
+  const showSaved = mode === 'saved'
 
   const lines = stationsQ.data?.lines ?? []
   const unified = useMemo(() => mergeStations(lines), [lines])
 
+  // Browse tabs: All + each distinct display badge, railway first.
+  const browseTabs = useMemo(() => {
+    const badges = [...new Set(unified.flatMap((s) => s.badges))]
+    const preferred = ['W', 'C', 'H', 'T', 'MM1', 'MM3', 'MONO']
+    const head = preferred.filter((b) => badges.includes(b))
+    const rest = badges.filter((b) => !head.includes(b)).sort()
+    return ['ALL', ...head, ...rest]
+  }, [unified])
+
+  const lineNameFor = (badge: string): string => {
+    const line = lines.find((l) => badgeFor(l.code) === badge)
+    return line ? line.name : badge
+  }
+
   const display: UnifiedStation[] = useMemo(() => {
     const q = query.trim().toUpperCase()
     if (q) return unified.filter((s) => s.name.includes(q))
-    if (lineFilter !== 'ALL') {
-      const line = lines.find((l) => l.code === lineFilter)
-      if (!line) return unified
+    if (browseTab !== 'ALL') {
+      const inTab = unified.filter((s) => s.badges.includes(browseTab))
+      // Line order when a single raw line represents this tab (e.g. W).
+      const rawLine = lines.find((l) => l.code === browseTab)
+      if (!rawLine) return inTab
       const byName = new Map(unified.map((s) => [s.name, s]))
-      return line.stations.map((st) => byName.get(st.name)).filter((s): s is UnifiedStation => !!s)
+      const ordered = rawLine.stations.map((st) => byName.get(st.name)).filter((s): s is UnifiedStation => !!s)
+      return ordered.length ? ordered : inTab
     }
-    // ALL: last station pinned on top, then A-Z (m-Indicator pins recents too)
-    const rest = unified
-    if (lastName && rest.some((s) => s.name === lastName)) {
-      return [rest.find((s) => s.name === lastName)!, ...rest.filter((s) => s.name !== lastName)]
+    if (lastName && unified.some((s) => s.name === lastName)) {
+      return [unified.find((s) => s.name === lastName)!, ...unified.filter((s) => s.name !== lastName)]
     }
-    return rest
-  }, [unified, lines, lineFilter, query, lastName])
+    return unified
+  }, [unified, lines, browseTab, query, lastName])
 
   const searchTrain = (e: React.FormEvent) => {
     e.preventDefault()
@@ -78,204 +139,301 @@ export default function Home() {
     }
   }
 
-  const quickLines = ['W', 'C', 'H', 'T']
-
   return (
-    <main className="mx-auto w-full max-w-[640px]">
-      {/* Red tabs, familiar layout */}
-      <div className="flex bg-[#c8102e] text-white" role="tablist" aria-label="Search mode">
-        {(
-          [
-            ['station', 'STATION'],
-            ['train', 'TRAIN NO.'],
-          ] as const
-        ).map(([value, label]) => (
-          <button
-            key={value}
-            role="tab"
-            aria-selected={tab === value}
-            onClick={() => setTab(value)}
-            className={`min-h-[44px] flex-1 text-sm font-semibold tracking-wide focus:outline-none focus-visible:ring-2 focus-visible:ring-white ${
-              tab === value ? 'border-b-4 border-white' : 'opacity-80'
-            }`}
-          >
-            {label}
+    <main className="relative mx-auto w-full max-w-6xl px-4 lg:max-w-none lg:px-0">
+      {/* Desktop sidebar (finalized Night Flare home) */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[248px] flex-col border-r border-zinc-900/8 bg-[#f7f4ee]/90 px-4 py-5 backdrop-blur-xl lg:flex dark:border-white/10 dark:bg-[#0a0a10]/92" aria-label="Home sidebar">
+        <Link to="/" className="flex items-center gap-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d93a3e]">
+          <span className="nf-glow-accent flex h-10 w-10 items-center justify-center rounded-2xl bg-[#d93a3e] text-white">
+            <TrainFront aria-hidden="true" className="h-5 w-5" />
+          </span>
+          <span className="leading-tight">
+            <span className="block text-sm font-bold tracking-wide uppercase">Mumbai Local</span>
+            <span className="block text-sm font-bold tracking-wide uppercase">Timetable</span>
+          </span>
+        </Link>
+        <nav className="mt-8 space-y-1 text-[15px]" aria-label="Primary">
+          <button type="button" onClick={() => scrollToId('top')} className="flex min-h-[44px] w-full items-center gap-3 rounded-xl bg-[#d93a3e]/10 px-3 text-left font-semibold text-[#d93a3e] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d93a3e] dark:bg-white/8 dark:text-zinc-50">
+            <House aria-hidden="true" className="h-5 w-5" /> Home
           </button>
-        ))}
+          <button type="button" onClick={() => scrollToId('browse-stations')} className="flex min-h-[44px] w-full items-center gap-3 rounded-xl px-3 text-left text-zinc-600 hover:bg-zinc-900/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d93a3e] dark:text-zinc-300 dark:hover:bg-white/8">
+            <Rows3 aria-hidden="true" className="h-5 w-5" /> Stations
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              scrollToId('browse-stations')
+              setTimeout(() => document.getElementById('line-tabs')?.focus({ preventScroll: true }), 350)
+            }}
+            className="flex min-h-[44px] w-full items-center gap-3 rounded-xl px-3 text-left text-zinc-600 hover:bg-zinc-900/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d93a3e] dark:text-zinc-300 dark:hover:bg-white/8"
+          >
+            <MapIcon aria-hidden="true" className="h-5 w-5" /> Lines
+          </button>
+          <Link to="/?mode=saved" className="flex min-h-[44px] items-center gap-3 rounded-xl px-3 text-zinc-600 hover:bg-zinc-900/5 dark:text-zinc-300 dark:hover:bg-white/8">
+            <Star aria-hidden="true" className="h-5 w-5" /> Saved
+          </Link>
+          <Link to="/?mode=train" className="flex min-h-[44px] items-center gap-3 rounded-xl px-3 text-zinc-600 hover:bg-zinc-900/5 dark:text-zinc-300 dark:hover:bg-white/8">
+            <TrainFront aria-hidden="true" className="h-5 w-5" /> Train No.
+          </Link>
+        </nav>
+        <div className="mt-auto flex gap-2.5 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
+          <Info aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
+          <p>
+            <span className="block font-semibold text-zinc-700 dark:text-zinc-200">Timetables you can trust</span>
+            Scheduled times · 24-hour IST. Always check the station board before you travel.
+          </p>
+        </div>
+      </aside>
+
+      {/* Mobile top bar (home has its own; the app header is hidden here) */}
+      <div className="sticky top-0 z-30 -mx-4 flex items-center gap-2.5 border-b border-zinc-900/8 bg-[#f7f4ee]/85 px-4 py-3 backdrop-blur-xl lg:hidden dark:border-white/10 dark:bg-[#0a0a10]/85">
+        <span className="nf-glow-accent flex h-9 w-9 items-center justify-center rounded-xl bg-[#d93a3e] text-white">
+          <TrainFront aria-hidden="true" className="h-5 w-5" />
+        </span>
+        <span className="flex-1 leading-tight">
+          <span className="block text-sm font-bold tracking-wide uppercase">Mumbai Local Timetable</span>
+        </span>
+        <Link to="/?mode=saved" className="flex min-h-[44px] items-center gap-1.5 rounded-full px-2 text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d93a3e]">
+          <Star aria-hidden="true" className="h-4 w-4 text-[#f5a524]" /> Saved
+        </Link>
       </div>
 
-      {tab === 'train' ? (
-        <form onSubmit={searchTrain} className="px-4 py-4">
-          <label htmlFor="train-search" className="mb-1 block font-semibold">Train number</label>
-          <div className="flex gap-2">
-            <input
-              id="train-search"
-              inputMode="numeric"
-              type="search"
-              value={trainQuery}
-              onChange={(e) => { setTrainQuery(e.target.value); setTrainResults(null) }}
-              placeholder="e.g. 90171"
-              className="min-h-[44px] w-full rounded border border-zinc-300 px-3 text-base dark:border-zinc-700 dark:bg-zinc-900"
-            />
-            <button type="submit" className="min-h-[44px] shrink-0 rounded bg-[#c8102e] px-4 font-semibold text-white">Search</button>
-          </div>
-          {trainResults && trainResults.length === 0 && <p className="mt-2 text-sm">No train found with that number.</p>}
-          {trainResults && trainResults.length > 1 && (
-            <ul className="mt-2 divide-y divide-zinc-200 border border-zinc-300 dark:divide-zinc-800 dark:border-zinc-700">
-              {trainResults.map((t) => {
-                const [l, seq] = t.trainId.split(':')
-                return (
-                  <li key={t.trainId}>
-                    <Link to={`/train/${l}/${seq}`} className="block min-h-[44px] px-3 py-2">
-                      {t.no} — {titleCase(t.origin)} → {titleCase(t.destination)} ({t.firstTime}, {t.line})
-                    </Link>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </form>
-      ) : (
-        <>
-          {/* You are at? + favourites star */}
-          <div className="flex items-center border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-            <Search aria-hidden="true" className="ml-3 h-5 w-5 shrink-0 text-zinc-400" />
-            <label className="sr-only" htmlFor="station-search">You are at?</label>
+      <div className="lg:pl-[248px]">
+      {/* Hero — Night Flare skyline banner, as finalized. */}
+      <section id="top" className="relative -mx-4 overflow-hidden px-4 pt-10 pb-8 sm:pt-14 lg:mx-0 lg:rounded-b-[2rem] lg:px-8">
+        <img src={skylineLight} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover dark:hidden" />
+        <img src={skylineDark} alt="" aria-hidden="true" className="absolute inset-0 hidden h-full w-full object-cover dark:block" />
+        <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-b from-[#f7f4ee]/55 via-[#f7f4ee]/25 to-[#f7f4ee] dark:from-[#0a0a10]/45 dark:via-[#0a0a10]/25 dark:to-[#0a0a10]" />
+        <div className="relative mx-auto max-w-2xl text-center">
+        <p className="mb-2 flex items-center justify-center gap-2 text-xs font-semibold tracking-[0.18em] text-zinc-600 uppercase dark:text-zinc-300">
+          <Clock3 aria-hidden="true" className="h-4 w-4 text-[#d93a3e] dark:text-[#f5a524]" />
+          Scheduled · 24-hour IST
+        </p>
+        <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Find your station</h1>
+        <p className="mx-auto mt-2 max-w-xl text-zinc-700 dark:text-zinc-300">
+          Mumbai local train timetables — search, pick a saved route, or scroll down to browse stations by line.
+        </p>
+
+        <div className="mt-6 flex justify-center gap-2" role="tablist" aria-label="Search mode">
+          {(
+            [
+              ['station', 'Station'],
+              ['train', 'Train No.'],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              role="tab"
+              aria-selected={tab === value}
+              onClick={() => setTab(value)}
+              className={`min-h-[44px] rounded-full px-4 text-sm font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d93a3e] ${
+                tab === value ? 'nf-glow-accent bg-[#d93a3e] text-white' : 'nf-panel'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'train' ? (
+          <form onSubmit={searchTrain} className="nf-panel mt-4 rounded-3xl p-4">
+            <label htmlFor="train-search" className="mb-1 block font-semibold">Train number</label>
+            <div className="flex gap-2">
+              <input
+                id="train-search"
+                inputMode="numeric"
+                type="search"
+                value={trainQuery}
+                onChange={(e) => { setTrainQuery(e.target.value); setTrainResults(null) }}
+                placeholder="e.g. 90171"
+                className="min-h-[48px] w-full rounded-2xl border border-zinc-900/10 bg-white/80 px-3 dark:border-white/10 dark:bg-zinc-900/80"
+              />
+              <button type="submit" className="min-h-[48px] shrink-0 rounded-2xl bg-[#d93a3e] px-5 font-semibold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d93a3e]">
+                Search
+              </button>
+            </div>
+            {trainResults && trainResults.length === 0 && <p className="mt-2 text-sm">No train found with that number.</p>}
+            {trainResults && trainResults.length > 1 && (
+              <ul className="mt-3 divide-y divide-zinc-900/8 dark:divide-white/10">
+                {trainResults.map((t) => {
+                  const [l, seq] = t.trainId.split(':')
+                  return (
+                    <li key={t.trainId}>
+                      <Link to={`/train/${l}/${seq}`} className="block min-h-[44px] py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d93a3e]">
+                        {t.no} — {titleCase(t.origin)} → {titleCase(t.destination)} ({t.firstTime}, {t.line})
+                      </Link>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </form>
+        ) : (
+          <div className="nf-panel mt-4 flex items-center rounded-full py-1 pr-1 pl-4">
+            <Search aria-hidden="true" className="h-5 w-5 shrink-0 text-zinc-400" />
+            <label className="sr-only" htmlFor="station-search">Search stations</label>
             <input
               id="station-search"
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="You are at?"
+              placeholder="Search stations — try Andheri"
               className="min-h-[48px] w-full bg-transparent px-2 text-base outline-none placeholder:text-zinc-400"
             />
             {query && (
-              <button type="button" aria-label="Clear search" onClick={() => setQuery('')} className="min-h-[44px] px-2">
+              <button type="button" aria-label="Clear search" onClick={() => setQuery('')} className="min-h-[44px] shrink-0 px-3">
                 <X aria-hidden="true" className="h-5 w-5" />
               </button>
             )}
-            <button
-              type="button"
-              aria-label="Favourite routes"
-              aria-pressed={showFavs}
-              onClick={() => setShowFavs((v) => !v)}
-              className="min-h-[48px] px-3 text-amber-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c8102e]"
-            >
-              <Star aria-hidden="true" className="h-6 w-6" fill={showFavs ? 'currentColor' : 'none'} />
-            </button>
           </div>
+        )}
 
-          {showFavs && (
-            <section aria-label="Favourite routes" className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-              <h2 className="mb-2 font-semibold">Favourite routes</h2>
-              {favs.length === 0 ? (
-                <p className="text-sm text-zinc-500">No Favourite Trains — star a route on a departure board and it will appear here.</p>
-              ) : (
-                <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                  {favs.map((f) => (
-                    <li key={`${f.stationName}:${f.slug}`}>
-                      <Link to={`/board/${encodeURIComponent(f.stationName)}/${f.slug}`} className="flex min-h-[44px] items-center justify-between py-2">
-                        <span>{titleCase(f.stationName)} → {f.label}</span>
-                        <ChevronRight aria-hidden="true" className="h-4 w-4 text-zinc-400" />
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          )}
-
-          {/* Navy line filter bar */}
-          <div className="flex items-stretch bg-[#23265d] text-white" aria-label="Line filter">
-            <button
-              type="button"
-              aria-pressed={lineFilter === 'ALL'}
-              onClick={() => setLineFilter('ALL')}
-              className={`min-h-[44px] flex-1 px-1 text-center ${lineFilter === 'ALL' ? 'font-bold' : 'opacity-75'}`}
-            >
-              <span className="block text-base leading-tight">ALL</span>
-              <span className="block text-[10px] tracking-wide">STATIONS</span>
-            </button>
-            {quickLines.map((code) => {
-              const line = lines.find((l) => l.code === code)
-              if (!line) return null
-              return (
-                <button
-                  key={code}
-                  type="button"
-                  aria-pressed={lineFilter === code}
-                  onClick={() => setLineFilter(code)}
-                  className={`min-h-[44px] flex-1 px-1 text-center ${lineFilter === code ? 'font-bold' : 'opacity-75'}`}
-                >
-                  <span className="block text-base leading-tight">{code}</span>
-                  <span className="block text-[10px] tracking-wide uppercase">{line.name.split(' ')[0]}</span>
-                </button>
-              )
-            })}
-            <button type="button" onClick={() => setSheetOpen(true)} className="min-h-[44px] flex-1 px-1 text-center opacity-90">
-              <span className="block text-base leading-tight">•••</span>
-              <span className="block text-[10px] tracking-wide">LINES</span>
-            </button>
-          </div>
-
-          {sheetOpen && (
-            <div className="fixed inset-0 z-20 bg-black/50" role="dialog" aria-modal="true" aria-label="Select line" onClick={() => setSheetOpen(false)}>
-              <div className="absolute inset-x-0 bottom-0 mx-auto max-h-[80dvh] w-full max-w-[640px] overflow-y-auto rounded-t-2xl bg-white p-4 dark:bg-zinc-900" onClick={(e) => e.stopPropagation()}>
-                <h2 className="mb-2 text-lg font-bold">Select Line</h2>
-                <button type="button" className="block min-h-[44px] w-full py-2 text-left" onClick={() => { setLineFilter('ALL'); setSheetOpen(false) }}>
-                  <span className="block font-medium">All Stations</span>
-                  <span className="block text-sm text-zinc-500">Show all stations</span>
-                </button>
-                {lines.map((l) => (
-                  <button key={l.code} type="button" className="block min-h-[44px] w-full py-2 text-left" onClick={() => { setLineFilter(l.code); setSheetOpen(false) }}>
-                    <span className="block font-medium">{l.name} <span className="text-zinc-500">({l.code})</span></span>
-                    <span className="block text-sm text-zinc-500">{titleCase(l.headerA)} — {titleCase(l.headerB)}</span>
-                  </button>
-                ))}
-                <button type="button" className="mt-2 min-h-[44px] w-full rounded bg-zinc-200 py-2 dark:bg-zinc-800" onClick={() => setSheetOpen(false)}>Close</button>
-              </div>
-            </div>
-          )}
-
-          {stationsQ.loading && <p className="px-4 py-4" aria-live="polite">Loading stations…</p>}
-          {stationsQ.error && (
-            <div role="alert" className="m-4 rounded border border-red-300 p-3">
-              <p>Couldn&apos;t load timetable — check connection.</p>
-              <button type="button" onClick={stationsQ.reload} className="mt-2 min-h-[44px] rounded bg-[#c8102e] px-3 text-white">Retry</button>
-            </div>
-          )}
-
-          <ul className="bg-white dark:bg-zinc-950">
-            {display.map((st) => {
-              const isOpen = expanded === st.name
-              const sub = subtitle(st)
-              return (
-                <li key={st.name} className="border-b border-zinc-100 dark:border-zinc-900">
-                  <button
-                    type="button"
-                    aria-expanded={isOpen}
-                    onClick={() => setExpanded(isOpen ? null : st.name)}
-                    className="flex min-h-[52px] w-full items-center gap-2 px-3 py-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c8102e]"
+        {/* Saved routes */}
+        <section id="saved-routes" aria-label="Saved routes" className={`mt-6 scroll-mt-24 ${showSaved ? 'nf-panel rounded-3xl p-4' : ''}`}>
+          <h2 className="mb-2 flex items-center justify-center gap-2 text-sm font-semibold tracking-wide text-zinc-600 uppercase dark:text-zinc-300">
+            <Star aria-hidden="true" className="h-4 w-4 text-[#f5a524]" fill="currentColor" />
+            Saved routes
+          </h2>
+          {favs.length === 0 ? (
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+              No saved routes yet — open a departure board and tap the star to save a station + direction here.
+            </p>
+          ) : (
+            <ul className="flex flex-wrap justify-center gap-2">
+              {favs.map((f) => (
+                <li key={`${f.stationName}:${f.slug}`}>
+                  <Link
+                    to={`/board/${encodeURIComponent(f.stationName)}/${f.slug}`}
+                    className="nf-panel flex min-h-[44px] items-center gap-2 rounded-full px-4 text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d93a3e]"
                   >
-                    <span aria-hidden="true" className={`h-2.5 w-2.5 shrink-0 rounded-full ${lastName === st.name ? 'bg-[#c8102e]' : 'bg-zinc-400'}`} />
-                    <span className="flex-1">
-                      <span className="block text-[17px]">{titleCase(st.name)}</span>
-                      {sub && <span className="block text-xs text-zinc-500">{sub}</span>}
+                    <Star aria-hidden="true" className="h-4 w-4 text-[#f5a524]" fill="currentColor" />
+                    {titleCase(f.stationName)} → {f.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          {lastName && (
+            <p className="mt-3 text-sm">
+              <Link to={`/s/${encodeURIComponent(lastName)}`} className="inline-flex min-h-[44px] items-center gap-1 font-medium text-[#d93a3e] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d93a3e] dark:text-[#f26d6d]">
+                <TrainFront aria-hidden="true" className="h-4 w-4" />
+                Continue at {titleCase(lastName)}
+                <ChevronRight aria-hidden="true" className="h-4 w-4" />
+              </Link>
+            </p>
+          )}
+        </section>
+        </div>
+      </section>
+
+      {/* Browse stations by line — the scroll-down explorer. */}
+      {tab === 'station' && (
+        <section id="browse-stations" aria-label="Browse stations by line" className="nf-panel relative z-10 mx-0 mb-24 scroll-mt-20 rounded-3xl p-4 sm:p-5 lg:mx-8 lg:mb-10">
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-lg font-bold tracking-tight">Browse stations by line</h2>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              {query ? `${display.length} matching` : browseTab === 'ALL' ? `${unified.length} stations` : lineNameFor(browseTab)}
+            </p>
+          </div>
+
+          {!query && (
+            <div id="line-tabs" tabIndex={-1} className="sticky top-[65px] z-20 -mx-1 flex gap-2 overflow-x-auto rounded-2xl bg-white/75 px-1 py-2 backdrop-blur-xl focus:outline-none lg:top-4 dark:bg-zinc-950/75" role="tablist" aria-label="Line filter">
+              {browseTabs.map((badge) => (
+                <button
+                  key={badge}
+                  role="tab"
+                  aria-selected={browseTab === badge}
+                  onClick={() => setBrowseTab(badge)}
+                  className={`min-h-[44px] shrink-0 rounded-full px-4 text-sm font-semibold whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d93a3e] ${
+                    browseTab === badge
+                      ? 'nf-glow-accent bg-[#d93a3e] text-white'
+                      : 'border border-zinc-900/10 bg-white/60 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10'
+                  }`}
+                >
+                  {badge === 'ALL' ? 'All' : (TAB_LABELS[badge] ?? badge)}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {stationsQ.loading && <p className="py-4" aria-live="polite">Loading stations…</p>}
+          {stationsQ.error && (
+            <div role="alert" className="rounded-2xl border border-red-300 p-3 dark:border-red-800">
+              <p>Couldn&apos;t load timetable — check connection.</p>
+              <button type="button" onClick={stationsQ.reload} className="mt-2 min-h-[44px] rounded-full bg-[#d93a3e] px-4 font-semibold text-white">Retry</button>
+            </div>
+          )}
+
+          <ul className="grid grid-cols-1 gap-x-8 md:grid-cols-2">
+            {(showAllStations ? display : display.slice(0, 40)).map((st) => {
+              const sub = subtitle(st)
+              const isLast = lastName === st.name && browseTab === 'ALL' && !query
+              return (
+                <li key={st.name} className="border-b border-zinc-900/6 dark:border-white/8">
+                  <Link
+                    to={`/s/${encodeURIComponent(st.name)}`}
+                    className="flex min-h-[52px] items-center gap-2 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d93a3e]"
+                    aria-label={`${titleCase(st.name)}${isLast ? ', last station' : ''}`}
+                  >
+                    <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${isLast ? 'bg-[#d93a3e] shadow-[0_0_10px_rgba(217,58,62,0.8)]' : 'bg-zinc-400 dark:bg-zinc-500'}`} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[17px] leading-snug font-medium">{titleCase(st.name)}</span>
+                      {sub && <span className="block text-xs text-zinc-500 dark:text-zinc-400">{sub}</span>}
                     </span>
-                    <span className="flex shrink-0 gap-1">
-                      {st.badges.map((b) => (
-                        <span key={b} className="rounded bg-[#23265d] px-1.5 py-0.5 text-[11px] font-bold text-white">{b}</span>
-                      ))}
-                    </span>
-                  </button>
-                  {isOpen && <DestinationGroups station={st} />}
+                    {/* Badges only where they add information: All/search views.
+                        Inside one line tab the badge would just repeat the tab. */}
+                    {(browseTab === 'ALL' || query) && (
+                      <span className="flex shrink-0 gap-1">
+                        {/* Mobile: first badge + count, so names never get crushed. */}
+                        <span className="rounded-full border border-zinc-900/12 px-2 py-0.5 text-[11px] font-semibold text-zinc-600 sm:hidden dark:border-white/15 dark:text-zinc-300">
+                          {st.badges[0]}{st.badges.length > 1 ? ` +${st.badges.length - 1}` : ''}
+                        </span>
+                        <span className="hidden gap-1 sm:flex">
+                          {st.badges.map((b) => (
+                            <span key={b} className="rounded-full border border-zinc-900/12 px-2 py-0.5 text-[11px] font-semibold text-zinc-600 dark:border-white/15 dark:text-zinc-300">
+                              {b}
+                            </span>
+                          ))}
+                        </span>
+                      </span>
+                    )}
+                    <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-zinc-400" />
+                  </Link>
                 </li>
               )
             })}
           </ul>
-          {stationsQ.data && display.length === 0 && <p className="px-4 py-4 text-sm text-zinc-500">No matching station found</p>}
-        </>
+          {stationsQ.data && display.length === 0 && <p className="py-4 text-sm text-zinc-500">No matching station found</p>}
+          {!showAllStations && display.length > 40 && (
+            <button
+              type="button"
+              onClick={() => setShowAllStations(true)}
+              className="mt-3 min-h-[48px] w-full rounded-full border border-zinc-900/12 font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d93a3e] dark:border-white/15"
+            >
+              Show all {display.length} stations
+            </button>
+          )}
+        </section>
       )}
+
+      {/* Mobile bottom navigation — always reachable, unlike the hero tabs. */}
+      <nav aria-label="Mobile" className="fixed inset-x-0 bottom-0 z-40 border-t border-zinc-900/8 bg-[#f7f4ee]/92 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden dark:border-white/10 dark:bg-[#0a0a10]/92">
+        <div className="grid grid-cols-4">
+          <button type="button" onClick={() => scrollToId('top')} className="flex min-h-[56px] flex-col items-center justify-center gap-0.5 text-[11px] font-semibold text-[#d93a3e] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#d93a3e]">
+            <House aria-hidden="true" className="h-5 w-5" /> Home
+          </button>
+          <button type="button" onClick={() => scrollToId('browse-stations')} className="flex min-h-[56px] flex-col items-center justify-center gap-0.5 text-[11px] font-medium text-zinc-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#d93a3e] dark:text-zinc-300">
+            <Rows3 aria-hidden="true" className="h-5 w-5" /> Stations
+          </button>
+          <Link to="/?mode=train" className="flex min-h-[56px] flex-col items-center justify-center gap-0.5 text-[11px] font-medium text-zinc-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#d93a3e] dark:text-zinc-300">
+            <TrainFront aria-hidden="true" className="h-5 w-5" /> Train No.
+          </Link>
+          <Link to="/?mode=saved" className="flex min-h-[56px] flex-col items-center justify-center gap-0.5 text-[11px] font-medium text-zinc-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#d93a3e] dark:text-zinc-300">
+            <Star aria-hidden="true" className="h-5 w-5" /> Saved
+          </Link>
+        </div>
+      </nav>
+      </div>
     </main>
   )
 }
