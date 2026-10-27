@@ -55,6 +55,22 @@ After that, deployment is automatic:
 - It regenerates and validates the timetable (`pipeline/build_data.py`); any validation failure fails the job and the live site keeps serving the previous timetable.
 - On success it builds the app and deploys the GitHub Pages artifact. No timetable data is ever committed to git.
 
+## Staging environment (test before prod)
+
+GitHub Pages gives a repo exactly **one** site, so staging lives at a subpath of the same site, built in the same deploy artifact:
+
+- **Prod:** https://jollysleeper.github.io/mumbai-local-timetable/ ← `main` branch
+- **Staging:** https://jollysleeper.github.io/mumbai-local-timetable/staging/ ← `staging` branch
+
+Flow for a change:
+
+1. Open a PR into `staging` (or push/merge your feature branch into `staging`). Pushing to `staging` triggers the `Deploy` workflow.
+2. The workflow builds `main` at the root **and** `staging` under `/staging/` and deploys them together — neither can wipe the other.
+3. Test staging on desktop/phone. Tip: use a fresh/incognito profile for staging if you have the prod PWA installed, so the prod service worker doesn't serve you the prod shell.
+4. When staging looks good, open a PR `staging` → `main`; merging + running the Deploy workflow (manual dispatch) promotes the same code to prod.
+
+Note: staging is a full second copy of the app (its own base path and timetable data copy); deep-link refreshes under `/staging/` may fall back to the prod 404 shell, so navigate within the staging app after opening its home page.
+
 ## Installing as an app
 
 - **Android (Chrome):** open the site, then Install app / Add to Home screen when prompted.
