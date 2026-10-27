@@ -1,6 +1,8 @@
-import { ChevronRight, Clock3, Search, Star, TrainFront, X } from 'lucide-react'
+import { ChevronRight, Clock3, House, Info, Map as MapIcon, Rows3, Search, Star, TrainFront, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import skylineDark from '../assets/night-flare-skyline-dark.jpg'
+import skylineLight from '../assets/night-flare-skyline-light.jpg'
 import { useJson } from '../hooks/useJson'
 import { getStations, getTrainIndex } from '../lib/data'
 import { loadFavourites } from '../lib/favourites'
@@ -73,10 +75,11 @@ export default function Home() {
   // Browse tabs: All + each distinct display badge, railway first.
   const browseTabs = useMemo(() => {
     const badges = [...new Set(unified.flatMap((s) => s.badges))]
-    const rail = badges.filter((b) => RAILWAY.has(b) || lines.some((l) => l.code === b && RAILWAY.has(l.code)))
-    const rest = badges.filter((b) => !rail.includes(b))
-    return ['ALL', ...rail.sort(), ...rest.sort()]
-  }, [unified, lines])
+    const preferred = ['W', 'C', 'H', 'T', 'MM1', 'MM3', 'MONO']
+    const head = preferred.filter((b) => badges.includes(b))
+    const rest = badges.filter((b) => !head.includes(b)).sort()
+    return ['ALL', ...head, ...rest]
+  }, [unified])
 
   const lineNameFor = (badge: string): string => {
     const line = lines.find((l) => badgeFor(l.code) === badge)
@@ -114,19 +117,74 @@ export default function Home() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4">
-      {/* Hero — clean first screen; browsing lives further down. */}
-      <section className="pt-8 pb-6 sm:pt-12">
-        <p className="mb-2 flex items-center gap-2 text-xs font-semibold tracking-[0.18em] text-zinc-500 uppercase dark:text-zinc-400">
-          <Clock3 aria-hidden="true" className="h-4 w-4 text-[#d93a3e]" />
+    <main className="relative mx-auto w-full max-w-6xl px-4 lg:max-w-none lg:px-0">
+      {/* Desktop sidebar (finalized Night Flare home) */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[248px] flex-col border-r border-zinc-900/8 bg-[#f7f4ee]/90 px-4 py-5 backdrop-blur-xl lg:flex dark:border-white/10 dark:bg-[#0a0a10]/92" aria-label="Home sidebar">
+        <Link to="/" className="flex items-center gap-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d93a3e]">
+          <span className="nf-glow-accent flex h-10 w-10 items-center justify-center rounded-2xl bg-[#d93a3e] text-white">
+            <TrainFront aria-hidden="true" className="h-5 w-5" />
+          </span>
+          <span className="leading-tight">
+            <span className="block text-sm font-bold tracking-wide uppercase">Mumbai Local</span>
+            <span className="block text-sm font-bold tracking-wide uppercase">Timetable</span>
+          </span>
+        </Link>
+        <nav className="mt-8 space-y-1 text-[15px]" aria-label="Primary">
+          <a href="#top" className="flex min-h-[44px] items-center gap-3 rounded-xl bg-[#d93a3e]/10 px-3 font-semibold text-[#d93a3e] dark:bg-white/8 dark:text-zinc-50">
+            <House aria-hidden="true" className="h-5 w-5" /> Home
+          </a>
+          <a href="#browse-stations" className="flex min-h-[44px] items-center gap-3 rounded-xl px-3 text-zinc-600 hover:bg-zinc-900/5 dark:text-zinc-300 dark:hover:bg-white/8">
+            <Rows3 aria-hidden="true" className="h-5 w-5" /> Stations
+          </a>
+          <a href="#browse-stations" className="flex min-h-[44px] items-center gap-3 rounded-xl px-3 text-zinc-600 hover:bg-zinc-900/5 dark:text-zinc-300 dark:hover:bg-white/8">
+            <MapIcon aria-hidden="true" className="h-5 w-5" /> Lines
+          </a>
+          <Link to="/?mode=saved" className="flex min-h-[44px] items-center gap-3 rounded-xl px-3 text-zinc-600 hover:bg-zinc-900/5 dark:text-zinc-300 dark:hover:bg-white/8">
+            <Star aria-hidden="true" className="h-5 w-5" /> Saved
+          </Link>
+          <Link to="/?mode=train" className="flex min-h-[44px] items-center gap-3 rounded-xl px-3 text-zinc-600 hover:bg-zinc-900/5 dark:text-zinc-300 dark:hover:bg-white/8">
+            <TrainFront aria-hidden="true" className="h-5 w-5" /> Train No.
+          </Link>
+        </nav>
+        <div className="mt-auto flex gap-2.5 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
+          <Info aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
+          <p>
+            <span className="block font-semibold text-zinc-700 dark:text-zinc-200">Timetables you can trust</span>
+            Scheduled times · 24-hour IST. Always check the station board before you travel.
+          </p>
+        </div>
+      </aside>
+
+      {/* Mobile top bar (home has its own; the app header is hidden here) */}
+      <div className="sticky top-0 z-30 -mx-4 flex items-center gap-2.5 border-b border-zinc-900/8 bg-[#f7f4ee]/85 px-4 py-3 backdrop-blur-xl lg:hidden dark:border-white/10 dark:bg-[#0a0a10]/85">
+        <span className="nf-glow-accent flex h-9 w-9 items-center justify-center rounded-xl bg-[#d93a3e] text-white">
+          <TrainFront aria-hidden="true" className="h-5 w-5" />
+        </span>
+        <span className="flex-1 leading-tight">
+          <span className="block text-sm font-bold tracking-wide uppercase">Mumbai Local Timetable</span>
+        </span>
+        <Link to="/?mode=saved" className="flex min-h-[44px] items-center gap-1.5 rounded-full px-2 text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d93a3e]">
+          <Star aria-hidden="true" className="h-4 w-4 text-[#f5a524]" /> Saved
+        </Link>
+      </div>
+
+      <div className="lg:pl-[248px]">
+      {/* Hero — Night Flare skyline banner, as finalized. */}
+      <section id="top" className="relative -mx-4 overflow-hidden px-4 pt-10 pb-8 sm:pt-14 lg:mx-0 lg:rounded-b-[2rem] lg:px-8">
+        <img src={skylineLight} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover dark:hidden" />
+        <img src={skylineDark} alt="" aria-hidden="true" className="absolute inset-0 hidden h-full w-full object-cover dark:block" />
+        <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-b from-[#f7f4ee]/55 via-[#f7f4ee]/25 to-[#f7f4ee] dark:from-[#0a0a10]/45 dark:via-[#0a0a10]/25 dark:to-[#0a0a10]" />
+        <div className="relative mx-auto max-w-2xl text-center">
+        <p className="mb-2 flex items-center justify-center gap-2 text-xs font-semibold tracking-[0.18em] text-zinc-600 uppercase dark:text-zinc-300">
+          <Clock3 aria-hidden="true" className="h-4 w-4 text-[#d93a3e] dark:text-[#f5a524]" />
           Scheduled · 24-hour IST
         </p>
         <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Find your station</h1>
-        <p className="mt-2 max-w-xl text-zinc-600 dark:text-zinc-300">
-          Search, pick a saved route, or scroll down to browse stations by line.
+        <p className="mx-auto mt-2 max-w-xl text-zinc-700 dark:text-zinc-300">
+          Mumbai local train timetables — search, pick a saved route, or scroll down to browse stations by line.
         </p>
 
-        <div className="mt-6 flex gap-2" role="tablist" aria-label="Search mode">
+        <div className="mt-6 flex justify-center gap-2" role="tablist" aria-label="Search mode">
           {(
             [
               ['station', 'Station'],
@@ -202,7 +260,7 @@ export default function Home() {
 
         {/* Saved routes */}
         <section aria-label="Saved routes" className={`mt-6 ${showSaved ? 'nf-panel rounded-3xl p-4' : ''}`}>
-          <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400">
+          <h2 className="mb-2 flex items-center justify-center gap-2 text-sm font-semibold tracking-wide text-zinc-600 uppercase dark:text-zinc-300">
             <Star aria-hidden="true" className="h-4 w-4 text-[#f5a524]" fill="currentColor" />
             Saved routes
           </h2>
@@ -211,7 +269,7 @@ export default function Home() {
               No saved routes yet — open a departure board and tap the star to save a station + direction here.
             </p>
           ) : (
-            <ul className="flex flex-wrap gap-2">
+            <ul className="flex flex-wrap justify-center gap-2">
               {favs.map((f) => (
                 <li key={`${f.stationName}:${f.slug}`}>
                   <Link
@@ -235,11 +293,12 @@ export default function Home() {
             </p>
           )}
         </section>
+        </div>
       </section>
 
       {/* Browse stations by line — the scroll-down explorer. */}
       {tab === 'station' && (
-        <section aria-label="Browse stations by line" className="nf-panel mb-10 rounded-3xl p-4 sm:p-5">
+        <section id="browse-stations" aria-label="Browse stations by line" className="nf-panel relative z-10 mx-0 mb-10 rounded-3xl p-4 sm:p-5 lg:mx-8">
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-lg font-bold tracking-tight">Browse stations by line</h2>
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
@@ -311,6 +370,7 @@ export default function Home() {
           {stationsQ.data && display.length === 0 && <p className="py-4 text-sm text-zinc-500">No matching station found</p>}
         </section>
       )}
+      </div>
     </main>
   )
 }

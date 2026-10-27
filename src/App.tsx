@@ -1,6 +1,6 @@
 import { Star, TrainFront } from 'lucide-react'
 import { useEffect } from 'react'
-import { BrowserRouter, Link } from 'react-router-dom'
+import { BrowserRouter, Link, useLocation } from 'react-router-dom'
 import UpdatePrompt from './components/UpdatePrompt'
 import { ensureCacheVersion } from './lib/cacheVersion'
 import { getMeta } from './lib/data'
@@ -17,8 +17,18 @@ export default function App() {
 
   return (
     <BrowserRouter basename={import.meta.env.BASE_URL}>
+      <Shell />
+    </BrowserRouter>
+  )
+}
+
+function Shell() {
+  const { pathname } = useLocation()
+  const isHome = pathname === '/'
+  return (
       <div className="min-h-dvh bg-[#f7f4ee] font-sans text-base text-zinc-900 antialiased dark:bg-[#0a0a10] dark:text-zinc-50">
         <div aria-hidden="true" className="nf-glow" />
+        {!isHome && (
         <header className="sticky top-0 z-30 border-b border-zinc-900/8 bg-white/75 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70">
           <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-4 py-3">
             <Link
@@ -58,12 +68,12 @@ export default function App() {
             </nav>
           </div>
         </header>
+        )}
         <AppRoutes />
-        <footer className="mx-auto w-full max-w-6xl px-4 py-8 text-xs text-zinc-500 dark:text-zinc-400">
+        <footer className={`mx-auto w-full max-w-6xl px-4 py-8 text-xs text-zinc-500 dark:text-zinc-400 ${isHome ? 'lg:mr-0 lg:ml-[248px] lg:w-[calc(100%-248px)]' : ''}`}>
           Unofficial timetable — not affiliated with any railway operator. Times are scheduled data in 24-hour IST; trains may run late, so check station boards before travelling. Live status will appear here when live data is connected.
         </footer>
         <UpdatePrompt />
       </div>
-    </BrowserRouter>
   )
 }
