@@ -1,4 +1,4 @@
-import { SlidersHorizontal, Star, X } from 'lucide-react'
+import { ArrowLeft, SlidersHorizontal, Star, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import DepartureRow, { type MergedBoardDeparture } from '../components/DepartureRow'
@@ -133,141 +133,155 @@ function UnifiedBoard() {
     ? { stationName, cluster: boardQ.data.cluster, slug, label: boardQ.data.label }
     : null
   const starred = route ? isFavourite(favs, route.stationName, route.slug) : false
+  const filterFieldClass =
+    'min-h-[48px] w-full rounded-2xl border border-zinc-900/10 bg-white/80 px-3 dark:border-white/10 dark:bg-zinc-900/80'
 
   return (
-    <main className="mx-auto w-full max-w-[640px] pb-[env(safe-area-inset-bottom)]">
-      <div className="flex items-center gap-1 bg-[#c8102e] px-2 py-3 text-white">
-        <Link to={`/s/${encodeURIComponent(stationName)}`} className="min-h-[44px] px-2 py-2 text-sm">←</Link>
-        <h2 className="flex-1 text-lg font-bold tracking-wide uppercase">{titleCase(stationName)}</h2>
-        <button
-          type="button"
-          aria-label={starred ? 'Remove favourite route' : 'Add favourite route'}
-          aria-pressed={starred}
-          onClick={() => route && setFavs(toggleFavourite(route))}
-          className="min-h-[44px] px-2 text-amber-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
-        >
-          <Star aria-hidden="true" className="h-6 w-6" fill={starred ? 'currentColor' : 'none'} />
-        </button>
-        <button
-          type="button"
-          aria-label="Filters: originating from and terminating at"
-          aria-pressed={filtersOpen}
-          onClick={() => setFiltersOpen((v) => !v)}
-          className="min-h-[44px] px-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
-        >
-          <SlidersHorizontal aria-hidden="true" className="h-6 w-6" />
-        </button>
-      </div>
-      <p className="bg-white px-4 py-2 text-sm text-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">
-        Towards {boardQ.data?.label ?? '…'}
-        {metaQ.data && <span className="text-zinc-400"> · Timetable {metaQ.data.version}</span>}
-      </p>
-      {!online && (
-        <p role="status" className="bg-amber-100 px-4 py-2 text-sm text-amber-900 dark:bg-amber-900 dark:text-amber-100">
-          Offline — showing saved timetable
-        </p>
-      )}
+    <main className="mx-auto w-full max-w-6xl px-4 pt-6 pb-10">
+      {/* Header panel */}
+      <div className="nf-panel rounded-3xl p-4 sm:p-5">
+        <div className="flex items-start gap-2">
+          <Link
+            to={`/s/${encodeURIComponent(stationName)}`}
+            className="flex min-h-[44px] items-center gap-1.5 rounded-full px-2 text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d93a3e]"
+            aria-label={`Back to ${titleCase(stationName)} directions`}
+          >
+            <ArrowLeft aria-hidden="true" className="h-5 w-5" />
+            <span className="hidden sm:inline">Directions</span>
+          </Link>
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-3xl font-bold tracking-tight sm:text-4xl">{titleCase(stationName)}</h1>
+            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
+              Towards {boardQ.data?.label ?? '…'} · Scheduled
+              {metaQ.data && <span className="text-zinc-500 dark:text-zinc-400"> · Timetable {metaQ.data.version}</span>}
+            </p>
+          </div>
+          <button
+            type="button"
+            aria-label={starred ? 'Remove saved route' : 'Save this route'}
+            aria-pressed={starred}
+            onClick={() => route && setFavs(toggleFavourite(route))}
+            className="min-h-[44px] shrink-0 px-2 text-[#f5a524] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d93a3e]"
+          >
+            <Star aria-hidden="true" className="h-6 w-6" fill={starred ? 'currentColor' : 'none'} />
+          </button>
+          <button
+            type="button"
+            aria-label="Filters: originating from and terminating at"
+            aria-expanded={filtersOpen}
+            onClick={() => setFiltersOpen((v) => !v)}
+            className="min-h-[44px] shrink-0 px-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d93a3e] lg:hidden"
+          >
+            <SlidersHorizontal aria-hidden="true" className="h-6 w-6" />
+          </button>
+        </div>
 
-      {filtersOpen && (
-        <section aria-label="Board filters" className="grid grid-cols-1 gap-3 border-b border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
+        {!online && (
+          <p role="status" className="mt-3 rounded-2xl bg-[#f5a524]/20 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
+            Offline — showing saved timetable
+          </p>
+        )}
+
+        {/* Two precise filters — always visible on desktop, toggle on mobile. */}
+        <section
+          aria-label="Board filters"
+          className={`${filtersOpen ? 'grid' : 'hidden'} mt-4 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid`}
+        >
           <div>
             <label htmlFor="originating-from" className="mb-1 block text-sm font-semibold">Originating from</label>
-            <select
-              id="originating-from"
-              value={originatingFrom}
-              onChange={(e) => setOriginatingFrom(e.target.value)}
-              className="min-h-[44px] w-full rounded border border-zinc-300 bg-transparent px-2 dark:border-zinc-700"
-            >
-              <option value="">All origins</option>
+            <select id="originating-from" value={originatingFrom} onChange={(e) => setOriginatingFrom(e.target.value)} className={filterFieldClass}>
+              <option value="">Any station</option>
               {origins.map((o) => (
                 <option key={o} value={o}>{titleCase(o)}</option>
               ))}
             </select>
-            <p className="mt-1 text-xs text-zinc-500">Only trains that start their journey at the chosen station.</p>
+            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Only trains that start their journey at the chosen station.</p>
           </div>
           <div>
             <label htmlFor="terminating-at" className="mb-1 block text-sm font-semibold">Terminating at</label>
-            <select
-              id="terminating-at"
-              value={terminatingAt}
-              onChange={(e) => setTerminatingAt(e.target.value)}
-              className="min-h-[44px] w-full rounded border border-zinc-300 bg-transparent px-2 dark:border-zinc-700"
-            >
-              <option value="">All final destinations</option>
+            <select id="terminating-at" value={terminatingAt} onChange={(e) => setTerminatingAt(e.target.value)} className={filterFieldClass}>
+              <option value="">Any station</option>
               {destinations.map((d) => (
                 <option key={d} value={d}>{titleCase(d)}</option>
               ))}
             </select>
-            <p className="mt-1 text-xs text-zinc-500">Only trains whose final destination is the chosen station.</p>
+            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Only trains whose final destination is the chosen station.</p>
           </div>
         </section>
-      )}
 
-      {terminatingAt && (
-        <p className="bg-white px-4 py-1 dark:bg-zinc-900">
-          <button
-            type="button"
-            onClick={() => setTerminatingAt('')}
-            className="inline-flex min-h-[32px] items-center gap-1 rounded-full bg-green-700 px-2 text-sm text-white"
-          >
-            <X aria-hidden="true" className="h-4 w-4" /> Terminating at {titleCase(terminatingAt)}
-          </button>
-        </p>
-      )}
-      {originatingFrom && (
-        <p className="bg-white px-4 py-1 dark:bg-zinc-900">
-          <button
-            type="button"
-            onClick={() => setOriginatingFrom('')}
-            className="inline-flex min-h-[32px] items-center gap-1 rounded-full bg-green-700 px-2 text-sm text-white"
-          >
-            <X aria-hidden="true" className="h-4 w-4" /> Originating from {titleCase(originatingFrom)}
-          </button>
-        </p>
-      )}
+        {(originatingFrom || terminatingAt) && (
+          <p className="mt-3 flex flex-wrap gap-2">
+            {originatingFrom && (
+              <button type="button" onClick={() => setOriginatingFrom('')} className="inline-flex min-h-[36px] items-center gap-1 rounded-full bg-emerald-700 px-3 text-sm font-medium text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d93a3e]">
+                <X aria-hidden="true" className="h-4 w-4" /> Originating from {titleCase(originatingFrom)}
+              </button>
+            )}
+            {terminatingAt && (
+              <button type="button" onClick={() => setTerminatingAt('')} className="inline-flex min-h-[36px] items-center gap-1 rounded-full bg-emerald-700 px-3 text-sm font-medium text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d93a3e]">
+                <X aria-hidden="true" className="h-4 w-4" /> Terminating at {titleCase(terminatingAt)}
+              </button>
+            )}
+          </p>
+        )}
 
-      {boardQ.loading && (
-        <div aria-live="polite" className="space-y-2 px-4 py-3">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="h-14 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
-          ))}
-          <p className="sr-only">Loading departures…</p>
+        {/* Pattern tabs + colour legend */}
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Departure view">
+            {(['NEXT', 'ALL', 'SLOW', 'FAST', 'AC'] as Bar[]).map((value) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={bar === value}
+                onClick={() => setBar(value)}
+                className={`min-h-[44px] rounded-full px-4 text-sm font-bold tracking-wide focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d93a3e] ${
+                  bar === value ? 'nf-glow-accent bg-[#d93a3e] text-white' : 'border border-zinc-900/10 bg-white/60 dark:border-white/10 dark:bg-white/5'
+                }`}
+              >
+                {value}
+              </button>
+            ))}
+          </div>
+          <p className="ml-auto flex flex-wrap items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400" aria-label="Colour legend">
+            <span className="nf-pill-fast inline-flex rounded-full px-2 py-0.5 font-bold uppercase">Fast</span>
+            <span className="nf-pill-slow inline-flex rounded-full px-2 py-0.5 font-bold uppercase">Slow</span>
+            <span className="nf-pill-ac inline-flex rounded-full px-2 py-0.5 font-bold uppercase">❄ AC</span>
+            <span className="nf-pill-muted inline-flex rounded-full px-2 py-0.5 font-bold uppercase">15 Car</span>
+          </p>
         </div>
-      )}
-      {boardQ.error && (
-        <div role="alert" className="m-4 rounded border border-red-300 p-3">
-          <p>Couldn&apos;t load timetable — check connection.</p>
-          <button type="button" onClick={boardQ.reload} className="mt-2 min-h-[44px] rounded bg-[#c8102e] px-3 text-white">Retry</button>
-        </div>
-      )}
-      {boardQ.data && display.length === 0 && <p className="px-4 py-4">No departures match these filters.</p>}
-      {boardQ.data && display.length > 0 && (
-        <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
-          {display.map((dep, i) => (
-            <DepartureRow
-              key={`${dep.trainId}-${dep.minutes}-${dep.tomorrow ? 't' : 'd'}-${i}`}
-              dep={dep}
-              relative={bar !== 'ALL' && i < 10 ? relativeFor(dep.minutes, now, dep.tomorrow) : ''}
-            />
-          ))}
-        </ul>
-      )}
+      </div>
 
-      <nav aria-label="Departure filters" className="sticky bottom-0 flex bg-[#23265d] text-white">
-        {(['SLOW', 'FAST', 'AC', 'NEXT', 'ALL'] as Bar[]).map((value) => (
-          <button
-            key={value}
-            type="button"
-            aria-pressed={bar === value}
-            onClick={() => setBar(value)}
-            className={`min-h-[48px] flex-1 text-sm tracking-wide ${bar === value ? 'font-bold' : 'opacity-70'}`}
-          >
-            {value}
-          </button>
-        ))}
-      </nav>
-      <p className="bg-white px-4 py-2 text-xs text-zinc-500 dark:bg-zinc-900">
-        NEXT shows next departing trains from now; SLOW/FAST/AC filter those next trains by type. Trains terminating at {titleCase(stationName)} are arrivals and are not shown.
+      {/* Departures */}
+      <section aria-label="Departures" className="nf-panel mt-4 overflow-hidden rounded-3xl">
+        {boardQ.loading && (
+          <div aria-live="polite" className="space-y-2 p-4">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="h-14 animate-pulse rounded-2xl bg-zinc-900/8 dark:bg-white/8" />
+            ))}
+            <p className="sr-only">Loading departures…</p>
+          </div>
+        )}
+        {boardQ.error && (
+          <div role="alert" className="m-4 rounded-2xl border border-red-300 p-3 dark:border-red-800">
+            <p>Couldn&apos;t load timetable — check connection.</p>
+            <button type="button" onClick={boardQ.reload} className="mt-2 min-h-[44px] rounded-full bg-[#d93a3e] px-4 font-semibold text-white">Retry</button>
+          </div>
+        )}
+        {boardQ.data && display.length === 0 && <p className="p-4">No departures match these filters.</p>}
+        {boardQ.data && display.length > 0 && (
+          <ul className="divide-y divide-zinc-900/6 dark:divide-white/8">
+            {display.map((dep, i) => (
+              <DepartureRow
+                key={`${dep.trainId}-${dep.minutes}-${dep.tomorrow ? 't' : 'd'}-${i}`}
+                dep={dep}
+                relative={bar !== 'ALL' && i < 10 ? relativeFor(dep.minutes, now, dep.tomorrow) : ''}
+                nextScheduled={bar !== 'ALL' && i === 0}
+              />
+            ))}
+          </ul>
+        )}
+      </section>
+      <p className="px-1 pt-3 text-xs text-zinc-500 dark:text-zinc-400">
+        NEXT shows the next scheduled departures from now; SLOW / FAST / AC filter by train type. Trains terminating at {titleCase(stationName)} are arrivals and are not shown. Times are scheduled — trains may run late.
       </p>
     </main>
   )
