@@ -1,10 +1,18 @@
 name: Deploy
 
+# Production (root) + Staging (/staging/) are deployed together in ONE
+# GitHub Pages artifact, because a repo gets exactly one Pages site.
+# - root     <- main branch
+# - /staging <- staging branch (long-lived; merge PRs there first to test)
+# Every deploy rebuilds both, so neither environment can wipe the other.
+
 on:
   schedule:
     # Mondays ~08:47 IST — deliberately off-the-hour
     - cron: '17 3 * * 1'
   workflow_dispatch:
+  push:
+    branches: [staging]
 
 permissions:
   pages: write
@@ -21,11 +29,25 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout production (main)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: prod-src
+
+      - name: Checkout staging (staging branch, if it exists)
+        id: staging_co
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: staging
+          path: staging-src
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: prod-src/package-lock.json
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -46,24 +68,40 @@ jobs:
             echo "should_deploy=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Generate timetable data
+      - name: Generate timetable data (prod + staging)
         if: steps.check.outputs.should_deploy == 'true'
-        run: python3 pipeline/build_data.py --zip /tmp/mumbaidb.zip --out public/data
+        run: |
+          python3 prod-src/pipeline/build_data.py --zip /tmp/mumbaidb.zip --out prod-src/public/data
+          if [ "${{ steps.staging_co.outcome }}" = "success" ]; then
+            python3 staging-src/pipeline/build_data.py --zip /tmp/mumbaidb.zip --out staging-src/public/data
+          fi
 
-      - name: Build
+      - name: Build production (site root, from main)
         if: steps.check.outputs.should_deploy == 'true'
+        working-directory: prod-src
         env:
           VITE_BASE: /${{ github.event.repository.name }}/
         run: |
           npm ci
           npm run build
 
+      - name: Build staging (site /staging/, from staging branch)
+        if: steps.check.outputs.should_deploy == 'true' && steps.staging_co.outcome == 'success'
+        working-directory: staging-src
+        env:
+          VITE_BASE: /${{ github.event.repository.name }}/staging/
+        run: |
+          npm ci
+          npm run build
+          mkdir -p ../prod-src/dist/staging
+          cp -r dist/. ../prod-src/dist/staging/
+
       - uses: actions/configure-pages@v5
         if: steps.check.outputs.should_deploy == 'true'
       - uses: actions/upload-pages-artifact@v3
         if: steps.check.outputs.should_deploy == 'true'
         with:
-          path: dist
+          path: prod-src/dist
       - id: deployment
         uses: actions/deploy-pages@v4
         if: steps.check.outputs.should_deploy == 'true'
