@@ -1,5 +1,5 @@
 import { ChevronRight, Clock3, House, Info, Map as MapIcon, Rows3, Search, Star, TrainFront, X } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import skylineDark from '../assets/night-flare-skyline-dark.jpg'
 import skylineLight from '../assets/night-flare-skyline-light.jpg'
@@ -65,6 +65,29 @@ export default function Home() {
   const [browseTab, setBrowseTab] = useState<string>('ALL')
   const [trainQuery, setTrainQuery] = useState('')
   const [trainResults, setTrainResults] = useState<TrainIndexEntry[] | null>(null)
+  const [showAllStations, setShowAllStations] = useState(false)
+
+  const scrollToId = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  // Nav links (/?mode=train, /?mode=saved) must work even when already on Home:
+  // react to mode changes instead of only reading it on first mount.
+  useEffect(() => {
+    if (mode === 'train') {
+      setTab('train')
+      scrollToId('top')
+    } else if (mode === 'saved') {
+      setTab('station')
+      // Wait for the station tab content to render before scrolling.
+      const t = setTimeout(() => scrollToId('saved-routes'), 60)
+      return () => clearTimeout(t)
+    }
+  }, [mode])
+
+  useEffect(() => {
+    setShowAllStations(false)
+  }, [browseTab, query])
   const favs = useMemo(loadFavourites, [mode])
   const lastName = useMemo(readLastName, [])
   const showSaved = mode === 'saved'
@@ -130,15 +153,22 @@ export default function Home() {
           </span>
         </Link>
         <nav className="mt-8 space-y-1 text-[15px]" aria-label="Primary">
-          <a href="#top" className="flex min-h-[44px] items-center gap-3 rounded-xl bg-[#d93a3e]/10 px-3 font-semibold text-[#d93a3e] dark:bg-white/8 dark:text-zinc-50">
+          <button type="button" onClick={() => scrollToId('top')} className="flex min-h-[44px] w-full items-center gap-3 rounded-xl bg-[#d93a3e]/10 px-3 text-left font-semibold text-[#d93a3e] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d93a3e] dark:bg-white/8 dark:text-zinc-50">
             <House aria-hidden="true" className="h-5 w-5" /> Home
-          </a>
-          <a href="#browse-stations" className="flex min-h-[44px] items-center gap-3 rounded-xl px-3 text-zinc-600 hover:bg-zinc-900/5 dark:text-zinc-300 dark:hover:bg-white/8">
+          </button>
+          <button type="button" onClick={() => scrollToId('browse-stations')} className="flex min-h-[44px] w-full items-center gap-3 rounded-xl px-3 text-left text-zinc-600 hover:bg-zinc-900/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d93a3e] dark:text-zinc-300 dark:hover:bg-white/8">
             <Rows3 aria-hidden="true" className="h-5 w-5" /> Stations
-          </a>
-          <a href="#browse-stations" className="flex min-h-[44px] items-center gap-3 rounded-xl px-3 text-zinc-600 hover:bg-zinc-900/5 dark:text-zinc-300 dark:hover:bg-white/8">
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              scrollToId('browse-stations')
+              setTimeout(() => document.getElementById('line-tabs')?.focus({ preventScroll: true }), 350)
+            }}
+            className="flex min-h-[44px] w-full items-center gap-3 rounded-xl px-3 text-left text-zinc-600 hover:bg-zinc-900/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d93a3e] dark:text-zinc-300 dark:hover:bg-white/8"
+          >
             <MapIcon aria-hidden="true" className="h-5 w-5" /> Lines
-          </a>
+          </button>
           <Link to="/?mode=saved" className="flex min-h-[44px] items-center gap-3 rounded-xl px-3 text-zinc-600 hover:bg-zinc-900/5 dark:text-zinc-300 dark:hover:bg-white/8">
             <Star aria-hidden="true" className="h-5 w-5" /> Saved
           </Link>
@@ -259,7 +289,7 @@ export default function Home() {
         )}
 
         {/* Saved routes */}
-        <section aria-label="Saved routes" className={`mt-6 ${showSaved ? 'nf-panel rounded-3xl p-4' : ''}`}>
+        <section id="saved-routes" aria-label="Saved routes" className={`mt-6 scroll-mt-24 ${showSaved ? 'nf-panel rounded-3xl p-4' : ''}`}>
           <h2 className="mb-2 flex items-center justify-center gap-2 text-sm font-semibold tracking-wide text-zinc-600 uppercase dark:text-zinc-300">
             <Star aria-hidden="true" className="h-4 w-4 text-[#f5a524]" fill="currentColor" />
             Saved routes
@@ -298,7 +328,7 @@ export default function Home() {
 
       {/* Browse stations by line — the scroll-down explorer. */}
       {tab === 'station' && (
-        <section id="browse-stations" aria-label="Browse stations by line" className="nf-panel relative z-10 mx-0 mb-10 rounded-3xl p-4 sm:p-5 lg:mx-8">
+        <section id="browse-stations" aria-label="Browse stations by line" className="nf-panel relative z-10 mx-0 mb-24 scroll-mt-20 rounded-3xl p-4 sm:p-5 lg:mx-8 lg:mb-10">
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-lg font-bold tracking-tight">Browse stations by line</h2>
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
@@ -307,7 +337,7 @@ export default function Home() {
           </div>
 
           {!query && (
-            <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-2" role="tablist" aria-label="Line filter">
+            <div id="line-tabs" tabIndex={-1} className="sticky top-[65px] z-20 -mx-1 flex gap-2 overflow-x-auto rounded-2xl bg-white/75 px-1 py-2 backdrop-blur-xl focus:outline-none lg:top-4 dark:bg-zinc-950/75" role="tablist" aria-label="Line filter">
               {browseTabs.map((badge) => (
                 <button
                   key={badge}
@@ -335,7 +365,7 @@ export default function Home() {
           )}
 
           <ul className="grid grid-cols-1 gap-x-8 md:grid-cols-2">
-            {display.map((st) => {
+            {(showAllStations ? display : display.slice(0, 40)).map((st) => {
               const sub = subtitle(st)
               const isLast = lastName === st.name && browseTab === 'ALL' && !query
               return (
@@ -346,19 +376,25 @@ export default function Home() {
                     aria-label={`${titleCase(st.name)}${isLast ? ', last station' : ''}`}
                   >
                     <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${isLast ? 'bg-[#d93a3e] shadow-[0_0_10px_rgba(217,58,62,0.8)]' : 'bg-zinc-400 dark:bg-zinc-500'}`} />
-                    <span className="flex-1">
-                      <span className="block text-[17px] font-medium">{titleCase(st.name)}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[17px] leading-snug font-medium">{titleCase(st.name)}</span>
                       {sub && <span className="block text-xs text-zinc-500 dark:text-zinc-400">{sub}</span>}
                     </span>
                     {/* Badges only where they add information: All/search views.
                         Inside one line tab the badge would just repeat the tab. */}
                     {(browseTab === 'ALL' || query) && (
                       <span className="flex shrink-0 gap-1">
-                        {st.badges.map((b) => (
-                          <span key={b} className="rounded-full border border-zinc-900/12 px-2 py-0.5 text-[11px] font-semibold text-zinc-600 dark:border-white/15 dark:text-zinc-300">
-                            {b}
-                          </span>
-                        ))}
+                        {/* Mobile: first badge + count, so names never get crushed. */}
+                        <span className="rounded-full border border-zinc-900/12 px-2 py-0.5 text-[11px] font-semibold text-zinc-600 sm:hidden dark:border-white/15 dark:text-zinc-300">
+                          {st.badges[0]}{st.badges.length > 1 ? ` +${st.badges.length - 1}` : ''}
+                        </span>
+                        <span className="hidden gap-1 sm:flex">
+                          {st.badges.map((b) => (
+                            <span key={b} className="rounded-full border border-zinc-900/12 px-2 py-0.5 text-[11px] font-semibold text-zinc-600 dark:border-white/15 dark:text-zinc-300">
+                              {b}
+                            </span>
+                          ))}
+                        </span>
                       </span>
                     )}
                     <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-zinc-400" />
@@ -368,8 +404,35 @@ export default function Home() {
             })}
           </ul>
           {stationsQ.data && display.length === 0 && <p className="py-4 text-sm text-zinc-500">No matching station found</p>}
+          {!showAllStations && display.length > 40 && (
+            <button
+              type="button"
+              onClick={() => setShowAllStations(true)}
+              className="mt-3 min-h-[48px] w-full rounded-full border border-zinc-900/12 font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d93a3e] dark:border-white/15"
+            >
+              Show all {display.length} stations
+            </button>
+          )}
         </section>
       )}
+
+      {/* Mobile bottom navigation — always reachable, unlike the hero tabs. */}
+      <nav aria-label="Mobile" className="fixed inset-x-0 bottom-0 z-40 border-t border-zinc-900/8 bg-[#f7f4ee]/92 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden dark:border-white/10 dark:bg-[#0a0a10]/92">
+        <div className="grid grid-cols-4">
+          <button type="button" onClick={() => scrollToId('top')} className="flex min-h-[56px] flex-col items-center justify-center gap-0.5 text-[11px] font-semibold text-[#d93a3e] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#d93a3e]">
+            <House aria-hidden="true" className="h-5 w-5" /> Home
+          </button>
+          <button type="button" onClick={() => scrollToId('browse-stations')} className="flex min-h-[56px] flex-col items-center justify-center gap-0.5 text-[11px] font-medium text-zinc-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#d93a3e] dark:text-zinc-300">
+            <Rows3 aria-hidden="true" className="h-5 w-5" /> Stations
+          </button>
+          <Link to="/?mode=train" className="flex min-h-[56px] flex-col items-center justify-center gap-0.5 text-[11px] font-medium text-zinc-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#d93a3e] dark:text-zinc-300">
+            <TrainFront aria-hidden="true" className="h-5 w-5" /> Train No.
+          </Link>
+          <Link to="/?mode=saved" className="flex min-h-[56px] flex-col items-center justify-center gap-0.5 text-[11px] font-medium text-zinc-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#d93a3e] dark:text-zinc-300">
+            <Star aria-hidden="true" className="h-5 w-5" /> Saved
+          </Link>
+        </div>
+      </nav>
       </div>
     </main>
   )
